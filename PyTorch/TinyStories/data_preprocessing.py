@@ -1,39 +1,51 @@
 import torch
-import sys
 import os
-
-sys.path.append('../')  
+import sys
+from typing import List
+sys.path.append('../') 
+ 
 from Classes.tokenizer import Tokenizer as T
+tokenizer = T()
 
-train_text = open('./data/tinystoriesv2-gpt4-train.txt').read()
-print(f'full training set read')
-train_size = len(train_text)
-chunk_size = len(train_text) // 50
-numslices = train_size // chunk_size
+# Define paths
+train_file_path = './data/tinystoriesv2-gpt4-train.txt'
+valid_file_path = './data/tinystoriesv2-gpt4-valid.txt'
+output_train_dir = './data/tokenized_inputs/'
 
-t = T()
-tokenized_text = []
+# Create output directory for training set if it doesn't exist
+if not os.path.exists(output_train_dir):
+    os.makedirs(output_train_dir)
 
-for i in range(numslices):
+# Parameters for chunking
+chunk_size = 1024 * 1024 * 20 # 1MB, adjust as needed
+buffer_size = 1024  # To ensure we don't cut words
 
-    chunk = train_text[chunk_size * i: chunk_size * i + chunk_size]
-    enc_chunk = t.encode(chunk, False, False)
-    tokenized_text.extend(enc_chunk)   
-    input_tns = torch.tensor(tokenized_text, dtype=torch.long)
-    torch.save(input_tns, f'./data/tokenized inputs/tns_chunk_{i}.pt')
-    tokenized_text = []
+def tokenize_and_save(text: str, output_path: str):
+    tokens: List[int] = tokenizer.encode(text, bos=False, eos=False)
+    token_tensor = torch.tensor(tokens)
+    torch.save(token_tensor, output_path)
 
-    if i % 5 == 0:
-        print(f'step {i}/100 completed')
+# Tokenize and save validation set
+with open(valid_file_path, 'r', encoding='utf-8') as f:
+    valid_text = f.read()
+    tokenize_and_save(valid_text, f'{output_train_dir}/val.pt')
+    
+# Tokenize and save training set
+with open(train_file_path, 'r', encoding='utf-8') as f:
+    i = 0
+    while True:
+        # Read chunk
+        text_chunk = f.read(chunk_size)
+        if not text_chunk:
+            break
 
-folder_path = './data/tokenized inputs'
-files = os.listdir(folder_path)
+        # Read buffer to make sure we get the full last word in chunk
+        buffer = f.read(buffer_size)
+        space_pos = buffer.find(' ')
+        if space_pos != -1:
+            text_chunk += buffer[:space_pos]
+            f.seek(f.tell() - len(buffer) + space_pos + 1)  # Move cursor back
 
-data = []
-
-# Loop through each file and load the tensor
-for file in files:
-    if file.endswith('.pt'): 
-        tensor_path = os.path.join(folder_path, file)
-        tensor = torch.load(tensor_path)
-        data.append(tensor)        
+        # Tokenize and save
+        tokenize_and_save(text_chunk, f'{output_train_dir}/tns_chunk_{i}.pt')
+        i += 1

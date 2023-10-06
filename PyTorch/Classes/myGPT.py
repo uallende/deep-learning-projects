@@ -122,16 +122,6 @@ class Model(nn.Module):
         
         self.out = nn.Linear(d_model, vocab_size)
 
-        print(
-            f'Model parameters \n'
-            f'n_layers: {self.n_layers} \n'
-            f'd_model: {self.d_model} \n'
-            f'n_heads: {self.n_heads} \n'
-            f'block_size: {self.block_size} \n'
-            f'dropout: {dropout} \n'
-            f'dff: {dff} \n'
-            )
-
     def forward(self, x, targets=None):
 
         #print(x.shape)
